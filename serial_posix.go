@@ -43,10 +43,6 @@ func New() Port {
 
 // Open connects to the given serial port.
 func (p *port) Open(c *Config) (err error) {
-	termios, err := newTermios(c)
-	if err != nil {
-		return
-	}
 	// See man termios(3).
 	// O_NOCTTY: no controlling terminal.
 	// O_NDELAY: no data carrier detect.
@@ -56,6 +52,14 @@ func (p *port) Open(c *Config) (err error) {
 	}
 	// Backup current termios to restore on closing.
 	p.backupTermios()
+
+	// Create a new Termios using the backup as defaults to avoid clobbering
+	// the OS defaults
+	termios, err := newTermios(c, p.oldTermios)
+	if err != nil {
+		return
+	}
+
 	if err = p.setTermios(termios); err != nil {
 		// No need to restore termios
 		syscall.Close(p.fd)
@@ -67,6 +71,9 @@ func (p *port) Open(c *Config) (err error) {
 		p.Close()
 		return err
 	}
+
+	p.setDtr(c.Dsrdtr)
+	p.setRts(c.Rtscts)
 	p.timeout = c.Timeout
 	return
 }
@@ -127,6 +134,51 @@ func (p *port) setTermios(termios *syscall.Termios) (err error) {
 	return
 }
 
+func (p *port) setDtr(dtr bool) {
+	var status int
+
+	syscall.Syscall(
+		syscall.SYS_IOCTL,
+		uintptr(p.fd),
+		uintptr(syscall.TIOCMGET),
+		uintptr(unsafe.Pointer(&status)))
+
+	if dtr {
+		status |= syscall.TIOCM_DTR
+	} else {
+		status &^= syscall.TIOCM_DTR
+	}
+
+	syscall.Syscall(
+		syscall.SYS_IOCTL,
+		uintptr(p.fd),
+		uintptr(syscall.TIOCMSET),
+		uintptr(unsafe.Pointer(&status)))
+}
+
+func (p *port) setRts(rts bool) {
+	var status int
+
+	// Get the modem bits status
+	syscall.Syscall(
+		syscall.SYS_IOCTL,
+		uintptr(p.fd),
+		uintptr(syscall.TIOCMGET),
+		uintptr(unsafe.Pointer(&status)))
+
+	if rts {
+		status |= syscall.TIOCM_RTS
+	} else {
+		status &^= syscall.TIOCM_RTS
+	}
+
+	// Update according to the conf.Rtscts setting
+	syscall.Syscall(syscall.SYS_IOCTL,
+		uintptr(p.fd),
+		uintptr(syscall.TIOCMSET),
+		uintptr(unsafe.Pointer(&status)))
+}
+
 // backupTermios saves current termios setting.
 // Make sure that device file has been opened before calling this function.
 func (p *port) backupTermios() {
@@ -156,8 +208,10 @@ func (p *port) restoreTermios() {
 
 // Helpers for termios
 
-func newTermios(c *Config) (termios *syscall.Termios, err error) {
+func newTermios(c *Config, originalTermios *syscall.Termios) (termios *syscall.Termios, err error) {
 	termios = &syscall.Termios{}
+	*termios = *originalTermios
+
 	flag := termios.Cflag
 	// Baud rate
 	if c.BaudRate == 0 {
@@ -171,7 +225,9 @@ func newTermios(c *Config) (termios *syscall.Termios, err error) {
 			return
 		}
 	}
+
 	termios.Cflag |= flag
+
 	// Input baud.
 	cfSetIspeed(termios, flag)
 	// Output baud.
@@ -187,7 +243,9 @@ func newTermios(c *Config) (termios *syscall.Termios, err error) {
 			return
 		}
 	}
+
 	termios.Cflag |= flag
+
 	// Stop bits
 	switch c.StopBits {
 	case 0, 1:
@@ -217,14 +275,27 @@ func newTermios(c *Config) (termios *syscall.Termios, err error) {
 		err = fmt.Errorf("serial: unsupported parity %v", c.Parity)
 		return
 	}
-	// Control modes.
-	// CREAD: Enable receiver.
-	// CLOCAL: Ignore control lines.
+
+	// Set raw mode for the terminal
 	termios.Cflag |= syscall.CREAD | syscall.CLOCAL
-	// Special characters.
-	// VMIN: Minimum number of characters for noncanonical read.
-	// VTIME: Time in deciseconds for noncanonical read.
-	// Both are unused as NDELAY is we utilized when opening device.
+	// enable raw input / output mode (buffered canonical disabled) - no echo
+	termios.Lflag &^= (syscall.ICANON | syscall.ECHO | syscall.ECHOE |
+		syscall.ECHOK | syscall.ECHONL | syscall.ISIG | syscall.IEXTEN)
+	termios.Oflag &^= (syscall.OPOST | syscall.ONLCR | syscall.OCRNL)
+	termios.Iflag &^= (syscall.INLCR | syscall.IGNCR | syscall.ICRNL | syscall.IGNBRK)
+
+	// as the library is async vmin should be zero to avoid blocking
+	// and vtime should be non-zero? Seems to match pyserial though.
+	termios.Cc[syscall.VMIN] = 0
+	termios.Cc[syscall.VTIME] = 0
+
+	// Enable / disable rtscts flow control
+	if c.Rtscts {
+		termios.Cflag |= tcCrtsCts
+	} else {
+		termios.Cflag &^= tcCrtsCts
+	}
+
 	return
 }
 
@@ -262,4 +333,12 @@ func enableRS485(fd int, config *RS485Config) error {
 		return errors.New("serial: unknown error from SYS_IOCTL (RS485)")
 	}
 	return nil
+}
+
+func (p *port) FlushInputBuffer() (err error) {
+	return tcflush(p.fd, syscall.TCIFLUSH)
+}
+
+func (p *port) FlushOutputBuffer() (err error) {
+	return tcflush(p.fd, syscall.TCOFLUSH)
 }

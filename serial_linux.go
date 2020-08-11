@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/unix"
 )
 
 var baudRates = map[int]uint32{
@@ -46,6 +48,12 @@ var charSizes = map[int]uint32{
 	8: syscall.CS8,
 }
 
+// This seems to be 32 bit on all linux platforms regardless of architecture
+const tcCrtsCts uint32 = unix.CRTSCTS
+const tcFlush = unix.TCFLSH
+const tcInputFlush = unix.TCIFLUSH
+const tcOutputFlush = unix.TCOFLUSH
+
 // syscallSelect is a wapper for syscall.Select that only returns error.
 func syscallSelect(n int, r *syscall.FdSet, w *syscall.FdSet, e *syscall.FdSet, tv *syscall.Timeval) error {
 	_, err := syscall.Select(n, r, w, e, tv)
@@ -80,6 +88,28 @@ func tcgetattr(fd int, termios *syscall.Termios) (err error) {
 		err = fmt.Errorf("tcgetattr failed %v", r)
 		return
 	}
+	return
+}
+
+// tcflush clears input / output buffers on a terminal.
+// See man tcsendbreak(3).
+func tcflush(fd int, action int) (err error) {
+	r, _, errno := syscall.Syscall(
+		syscall.SYS_IOCTL,
+		uintptr(fd),
+		uintptr(tcFlush),
+		uintptr(action))
+
+	if errno != 0 {
+		err = errno
+		return
+	}
+
+	if r != 0 {
+		err = fmt.Errorf("tcflush failed %v", r)
+		return
+	}
+
 	return
 }
 

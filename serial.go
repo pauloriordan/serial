@@ -29,6 +29,10 @@ type Config struct {
 	Parity string
 	// Read (Write) timeout.
 	Timeout time.Duration
+	// Enable hardware rts/cts flowcontrol (default false)
+	Rtscts bool
+	// Enable hardware dsr/dtr flowcontrol (default false)
+	Dsrdtr bool
 	// Configuration related to RS485
 	RS485 RS485Config
 }
@@ -52,8 +56,12 @@ type RS485Config struct {
 // Port is the interface for controlling serial port.
 type Port interface {
 	io.ReadWriteCloser
-	// Connect connects to the serial port.
+	// Open connects to the serial port.
 	Open(*Config) error
+	// FlushInputBuffer clears the serial ports input buffer, i.e using TIOCFLUSH/TCFLSH
+	FlushInputBuffer() error
+	// FlushInputBuffer clears the serial ports output buffer, i.e using TIOCFLUSH/TCFLSH
+	FlushOutputBuffer() error
 }
 
 // Open opens a serial port.

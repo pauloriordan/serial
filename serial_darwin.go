@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/unix"
 )
 
 var baudRates = map[int]uint64{
@@ -33,6 +35,12 @@ var charSizes = map[int]uint64{
 	7: syscall.CS7,
 	8: syscall.CS8,
 }
+
+// This seems to be 64 bit on all darwin amd64 and ppc
+const tcCrtsCts uint64 = unix.CRTSCTS
+const tcFlush = unix.TIOCFLUSH
+const tcInputFlush = unix.TCIFLUSH
+const tcOutputFlush = unix.TCOFLUSH
 
 // syscallSelect is a wapper for syscall.Select that only returns error.
 func syscallSelect(n int, r *syscall.FdSet, w *syscall.FdSet, e *syscall.FdSet, tv *syscall.Timeval) error {
@@ -67,6 +75,28 @@ func tcgetattr(fd int, termios *syscall.Termios) (err error) {
 		err = fmt.Errorf("tcgetattr failed %v", r)
 		return
 	}
+	return
+}
+
+func tcflush(fd int, action int) (err error) {
+	var f int = action
+
+	r, _, errno := syscall.Syscall(
+		syscall.SYS_IOCTL,
+		uintptr(fd),
+		uintptr(tcFlush),
+		uintptr(unsafe.Pointer(&f)))
+
+	if errno != 0 {
+		err = errno
+		return
+	}
+
+	if r != 0 {
+		err = fmt.Errorf("tcflush failed %v", r)
+		return
+	}
+
 	return
 }
 
