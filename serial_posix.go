@@ -276,16 +276,20 @@ func newTermios(c *Config, originalTermios *syscall.Termios) (termios *syscall.T
 		return
 	}
 
-	// Set raw mode for the terminal
+	// Set raw mode for the terminal (from pyserial)
 	termios.Cflag |= syscall.CREAD | syscall.CLOCAL
-	// enable raw input / output mode (buffered canonical disabled) - no echo
-	termios.Lflag &^= (syscall.ICANON | syscall.ECHO | syscall.ECHOE |
-		syscall.ECHOK | syscall.ECHONL | syscall.ISIG | syscall.IEXTEN)
-	termios.Oflag &^= (syscall.OPOST | syscall.ONLCR | syscall.OCRNL)
-	termios.Iflag &^= (syscall.INLCR | syscall.IGNCR | syscall.ICRNL | syscall.IGNBRK)
 
-	// as the library is async vmin should be zero to avoid blocking
-	// and vtime should be non-zero? Seems to match pyserial though.
+	termios.Lflag &^= (syscall.ICANON | syscall.ECHO | syscall.ECHOE |
+		syscall.ECHOK | syscall.ECHONL | syscall.ISIG | syscall.IEXTEN |
+		syscall.ECHOCTL | syscall.ECHOKE)
+
+	termios.Oflag &^= (syscall.OPOST | syscall.ONLCR | syscall.OCRNL)
+
+	termios.Iflag &^= (syscall.INLCR | syscall.IGNCR | syscall.ICRNL |
+		syscall.IGNBRK | syscall.PARMRK)
+
+	// Set both MIN and TIME to zero. Read always returns immediately with as many
+	// characters as are available in the queue
 	termios.Cc[syscall.VMIN] = 0
 	termios.Cc[syscall.VTIME] = 0
 
