@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/goburrow/serial"
+	"github.com/pauloriordan/serial"
 )
 
 var (
