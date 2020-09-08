@@ -286,7 +286,7 @@ func newTermios(c *Config, originalTermios *syscall.Termios) (termios *syscall.T
 	termios.Oflag &^= (syscall.OPOST | syscall.ONLCR | syscall.OCRNL)
 
 	termios.Iflag &^= (syscall.INLCR | syscall.IGNCR | syscall.ICRNL |
-		syscall.IGNBRK | syscall.PARMRK)
+		syscall.IGNBRK | syscall.PARMRK | syscall.IXON)
 
 	// Set both MIN and TIME to zero. Read always returns immediately with as many
 	// characters as are available in the queue
