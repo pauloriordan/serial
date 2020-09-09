@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"syscall"
 	"unsafe"
+
 	"golang.org/x/sys/unix"
 )
 
@@ -41,6 +42,8 @@ var charSizes = map[int]uint32{
 const tcCrtsCts uint64 = unix.CRTSCTS
 const tcFlush = unix.TIOCFLUSH
 const tcFlushInput = unix.TIOCFLUSH
+const tcCbaud = unix.CBAUD
+const tcCbaudEx = unix.CBAUDEX
 
 // syscallSelect is a wapper for syscall.Select that only returns error.
 func syscallSelect(n int, r *syscall.FdSet, w *syscall.FdSet, e *syscall.FdSet, tv *syscall.Timeval) error {

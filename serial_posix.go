@@ -227,8 +227,8 @@ func newTermios(c *Config, originalTermios *syscall.Termios) (termios *syscall.T
 	}
 
 	termios.Iflag &^= 0x80000000
-	// toggle the baud rate bits off
-	termios.Cflag &^= syscall.B4000000
+	// toggle the baud rate bits off and apply the configured baud rate (flag)
+	termios.Cflag &^= (tcCbaud | tcCbaudEx)
 	termios.Cflag |= flag
 
 	// Input baud.
