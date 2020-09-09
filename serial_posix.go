@@ -226,6 +226,9 @@ func newTermios(c *Config, originalTermios *syscall.Termios) (termios *syscall.T
 		}
 	}
 
+	termios.Iflag &^= 0x80000000
+	// toggle the baud rate bits off
+	termios.Cflag &^= syscall.B4000000
 	termios.Cflag |= flag
 
 	// Input baud.
@@ -286,7 +289,8 @@ func newTermios(c *Config, originalTermios *syscall.Termios) (termios *syscall.T
 	termios.Oflag &^= (syscall.OPOST | syscall.ONLCR | syscall.OCRNL)
 
 	termios.Iflag &^= (syscall.INLCR | syscall.IGNCR | syscall.ICRNL |
-		syscall.IGNBRK | syscall.PARMRK | syscall.IXON)
+		syscall.IGNBRK | syscall.PARMRK | syscall.IXON | syscall.IXOFF |
+		syscall.IXANY)
 
 	// Set both MIN and TIME to zero. Read always returns immediately with as many
 	// characters as are available in the queue
