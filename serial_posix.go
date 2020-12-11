@@ -72,8 +72,9 @@ func (p *port) Open(c *Config) (err error) {
 		return err
 	}
 
-	p.setDtr(c.Dsrdtr)
-	p.setRts(c.Rtscts)
+	//p.setDtr(c.Dsrdtr)
+	//p.setRts(c.Rtscts)
+	p.setRtsDtr(c.Rtscts, c.Dsrdtr)
 	p.timeout = c.Timeout
 	return
 }
@@ -110,6 +111,8 @@ func (p *port) Read(b []byte) (n int, err error) {
 		if err != syscall.EINTR {
 			err = fmt.Errorf("serial: could not select: %v", err)
 			return
+		} else {
+			fmt.Printf("error: %v\n", err)
 		}
 	}
 	if !fdisset(fd, &rfds) {
@@ -118,6 +121,12 @@ func (p *port) Read(b []byte) (n int, err error) {
 		return
 	}
 	n, err = syscall.Read(fd, b)
+
+	if n < 1 {
+		// Syscall reported ready, but read returned no data. That's an error
+		err = syscall.EBADF
+	}
+	
 	return
 }
 
@@ -134,6 +143,34 @@ func (p *port) setTermios(termios *syscall.Termios) (err error) {
 	return
 }
 
+func (p *port) setRtsDtr(rts bool, dtr bool) {
+	var status int
+
+	syscall.Syscall(
+		syscall.SYS_IOCTL,
+		uintptr(p.fd),
+		uintptr(syscall.TIOCMGET),
+		uintptr(unsafe.Pointer(&status)))
+
+	if rts {
+		status |= syscall.TIOCM_RTS
+	} else {
+		status &^= syscall.TIOCM_RTS
+	}
+
+	if dtr {
+		status |= syscall.TIOCM_DTR
+	} else {
+		status &^= syscall.TIOCM_DTR
+	}
+
+	syscall.Syscall(
+		syscall.SYS_IOCTL,
+		uintptr(p.fd),
+		uintptr(syscall.TIOCMSET),
+		uintptr(unsafe.Pointer(&status)))
+}
+
 func (p *port) setDtr(dtr bool) {
 	var status int
 
@@ -143,10 +180,13 @@ func (p *port) setDtr(dtr bool) {
 		uintptr(syscall.TIOCMGET),
 		uintptr(unsafe.Pointer(&status)))
 
+	fmt.Printf("dtr status: %d\n", status)
 	if dtr {
 		status |= syscall.TIOCM_DTR
+		fmt.Printf("+dtr status: %d\n", status)
 	} else {
 		status &^= syscall.TIOCM_DTR
+		fmt.Printf("-dtr status: %d\n", status)
 	}
 
 	syscall.Syscall(
@@ -166,10 +206,14 @@ func (p *port) setRts(rts bool) {
 		uintptr(syscall.TIOCMGET),
 		uintptr(unsafe.Pointer(&status)))
 
+	fmt.Printf("rts status: %d\n", status)
+
 	if rts {
 		status |= syscall.TIOCM_RTS
+		fmt.Printf("+rts status: %d\n", status)
 	} else {
 		status &^= syscall.TIOCM_RTS
+		fmt.Printf("-rts status: %d\n", status)
 	}
 
 	// Update according to the conf.Rtscts setting
