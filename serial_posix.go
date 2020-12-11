@@ -111,8 +111,6 @@ func (p *port) Read(b []byte) (n int, err error) {
 		if err != syscall.EINTR {
 			err = fmt.Errorf("serial: could not select: %v", err)
 			return
-		} else {
-			fmt.Printf("error: %v\n", err)
 		}
 	}
 	if !fdisset(fd, &rfds) {
@@ -180,13 +178,10 @@ func (p *port) setDtr(dtr bool) {
 		uintptr(syscall.TIOCMGET),
 		uintptr(unsafe.Pointer(&status)))
 
-	fmt.Printf("dtr status: %d\n", status)
 	if dtr {
 		status |= syscall.TIOCM_DTR
-		fmt.Printf("+dtr status: %d\n", status)
 	} else {
 		status &^= syscall.TIOCM_DTR
-		fmt.Printf("-dtr status: %d\n", status)
 	}
 
 	syscall.Syscall(
@@ -206,14 +201,10 @@ func (p *port) setRts(rts bool) {
 		uintptr(syscall.TIOCMGET),
 		uintptr(unsafe.Pointer(&status)))
 
-	fmt.Printf("rts status: %d\n", status)
-
 	if rts {
 		status |= syscall.TIOCM_RTS
-		fmt.Printf("+rts status: %d\n", status)
 	} else {
 		status &^= syscall.TIOCM_RTS
-		fmt.Printf("-rts status: %d\n", status)
 	}
 
 	// Update according to the conf.Rtscts setting
