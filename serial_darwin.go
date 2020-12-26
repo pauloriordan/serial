@@ -43,6 +43,7 @@ const tcInputFlush = unix.TCIFLUSH
 const tcOutputFlush = unix.TCOFLUSH
 const tcCbaud = syscall.B50 - 1
 const tcCbaudEx = syscall.B230400
+const tcCmsPar = 0
 
 // syscallSelect is a wapper for syscall.Select that only returns error.
 func syscallSelect(n int, r *syscall.FdSet, w *syscall.FdSet, e *syscall.FdSet, tv *syscall.Timeval) error {

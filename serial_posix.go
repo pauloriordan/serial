@@ -124,7 +124,7 @@ func (p *port) Read(b []byte) (n int, err error) {
 		// Syscall reported ready, but read returned no data. That's an error
 		err = syscall.EBADF
 	}
-	
+
 	return
 }
 
@@ -288,7 +288,7 @@ func newTermios(c *Config, originalTermios *syscall.Termios) (termios *syscall.T
 	switch c.StopBits {
 	case 0, 1:
 		// Default is one stop bit.
-		// noop
+		termios.Cflag &^= syscall.CSTOPB
 	case 2:
 		// CSTOPB: Set two stop bits.
 		termios.Cflag |= syscall.CSTOPB
@@ -296,19 +296,24 @@ func newTermios(c *Config, originalTermios *syscall.Termios) (termios *syscall.T
 		err = fmt.Errorf("serial: unsupported stop bits %v", c.StopBits)
 		return
 	}
+
+	termios.Iflag &^= (syscall.INPCK | syscall.ISTRIP)
+
 	switch c.Parity {
 	case "N":
-		// noop
-	case "O":
-		// PARODD: Parity is odd.
-		termios.Cflag |= syscall.PARODD
-		fallthrough
+		// No parity
+		termios.Cflag &^= (syscall.PARODD | syscall.PARENB | tcCmsPar)
 	case "", "E":
 		// As mentioned in the modbus spec, the default parity mode must be Even parity
 		// PARENB: Enable parity generation on output.
+		termios.Cflag &^= (syscall.PARODD | tcCmsPar)
 		termios.Cflag |= syscall.PARENB
-		// INPCK: Enable input parity checking.
+		// INPCK: Enable input parity checking. XXX
 		termios.Iflag |= syscall.INPCK
+	case "O":
+		// PARODD: Parity is odd.
+		termios.Cflag &^= tcCmsPar
+		termios.Cflag |= (syscall.PARENB | syscall.PARODD)
 	default:
 		err = fmt.Errorf("serial: unsupported parity %v", c.Parity)
 		return
